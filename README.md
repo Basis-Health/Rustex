@@ -47,19 +47,20 @@ def with_rustex(name: str) -> PyRustexMutex:
 
 async def a_main():
     async def drama(i):
+        mt = 'test{}'.format(random.randint(0, 3))
         try:
             with PyRustexContext():
-                async with with_rustex('test'):
-                    print("In a_main")
+                async with with_rustex(mt):
+                    print("In a_main in context {} on mtex {}".format(cv.get(), mt))
                     if random.random() < .5:
                         raise ArithmeticError("Dramatic Test Exception")
-                    print("Survived")
+                    print("Survived mtex {}".format(mt))
 
         except ArithmeticError as e:
-            print("Past exception")
+            print("Past exception mtex {}".format(mt))
             pass
 
-    await asyncio.gather(*[drama(i) for i in range(8)])
+    await asyncio.gather(*[drama(i) for i in range(10)])
 
 
 def main():
