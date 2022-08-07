@@ -8,7 +8,6 @@ use pyo3::exceptions::{PyRuntimeError};
 
 use log::debug;
 
-
 struct RustexCore {
     map: RwLock<HashMap<String, String>>,
     contexts: RwLock<HashSet<String>>,
@@ -111,6 +110,7 @@ impl Rustex {
                 let mut map = core.map.write().unwrap();
                 if let Some(kp) = map.get(&mutex_name) {
                     if !core.contexts.read().unwrap().contains(kp) {
+                        debug!("Mutex {} is locked by context {}, but that context doesn't exist anymore, will free mutex", mutex_name, kp);
                         map.remove(&mutex_name);
                     } else {
                         debug!("Mutex {} is locked by context {}, waiting {}ms", mutex_name, kp, core.sleep_duration.as_millis());
@@ -128,6 +128,38 @@ impl Rustex {
 
             debug!("Mutex {} acquired by context {}", mutex_name, context);
             Ok(Python::with_gil(|py| py.None()))
+        })
+    }
+
+    /// try_acquire_mutex(mutex_name: str, context: str, /)
+    /// --
+    ///
+    /// Returns a coroutine that tries to acquire the mutex which will return true on success
+    /// or false if the mutex is already being held.
+    ///
+    /// Note: This function will not try to continuously acquire the mutex
+    fn try_acquire_mutex<'a>(&self, py: Python<'a>, mutex_name: String, context: String) -> PyResult<&'a PyAny> {
+        let core = Arc::clone(&self.0);
+
+        pyo3_asyncio::async_std::future_into_py(py, async move {
+            if !(core.contexts.read().unwrap().contains(&context)) {
+                return Err(PyRuntimeError::new_err("Trying to acquire mutex for context that is not registered"))
+            }
+
+            let mut map = core.map.write().unwrap();
+            if let Some(kp) = map.get(&mutex_name) {
+                if !core.contexts.read().unwrap().contains(kp) {
+                    debug!("Mutex {} is locked by context {}, but that context doesn't exist anymore, will free mutex", mutex_name, kp);
+                    map.remove(&mutex_name);
+                } else {
+                    debug!("Mutex {} is locked by context {}", mutex_name, kp);
+                    return Ok(false)
+                }
+            }
+
+            debug!("Mutex {} acquired by context {}", mutex_name, context);
+            map.insert(mutex_name.clone(), context.clone());
+            Ok(true)
         })
     }
 
@@ -165,5 +197,19 @@ impl Rustex {
                 Err(PyRuntimeError::new_err("Trying to release mutex that is not registered"))
             }
         })
+    }
+
+    /// is_context_holding_mutex(mutex_name: str, context: str, /)
+    /// --
+    ///
+    /// Checks whether the provided context is holding the given mutex
+    ///
+    /// Note: This function will also return False, if the context or the mutex is not available
+    fn is_context_holding_mutex(&self, mutex_name: String, context: String) -> PyResult<bool> {
+        if let Some(x) = self.0.map.read().unwrap().get(&mutex_name) {
+            Ok(x == &context)
+        } else {
+            Ok(false)
+        }
     }
 }
