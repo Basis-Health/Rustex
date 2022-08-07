@@ -168,25 +168,19 @@ impl Rustex {
     }
 }
 
-/// disable_logging(/)
+/// enable_logging(verbose: bool, /)
 /// --
 ///
-/// Disables logging of the Rustex library. This is useful for reducing the
-/// amount of logging that is generated when the library is used in a
-/// production environment.
-///
-/// Note: The logging is enabled by default from a DEBUG level.
+/// Enables logging of the Rustex library
 #[pyfunction]
-fn disable_logging() {
-    SimpleLogger::new().with_level(LevelFilter::Off).init().unwrap();
+fn enable_logging(verbose: bool) {
+    SimpleLogger::default().with_level(if verbose {LevelFilter::Trace } else {LevelFilter::Debug}).init().unwrap();
 }
 
 #[pymodule]
 fn rustex(_py: Python, m: &PyModule) -> PyResult<()> {
-    SimpleLogger::new().with_level(LevelFilter::Debug).init().unwrap();
-
     m.add_class::<Rustex>()?;
-    m.add_function(wrap_pyfunction!(disable_logging, m)?)?;
+    m.add_function(wrap_pyfunction!(enable_logging, m)?)?;
 
     Ok(())
 }
