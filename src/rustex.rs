@@ -6,7 +6,7 @@ use std::{
 use pyo3::prelude::*;
 use pyo3::exceptions::{PyRuntimeError};
 
-use log::debug;
+use log::{debug, error};
 
 struct RustexCore {
     map: RwLock<HashMap<String, String>>,
@@ -65,6 +65,7 @@ impl Rustex {
     ///
     /// Note: This function is blocking.
     fn add_context(&self, context: String) -> PyResult<()> {
+        debug!("Adding context {}", context);
         let value_didnt_exist = self.0.contexts.write().unwrap().insert(context);
         if value_didnt_exist { Ok(()) } else { Err(PyRuntimeError::new_err("Added context that already exists!")) }
     }
@@ -79,6 +80,7 @@ impl Rustex {
     ///
     /// Note: This function is blocking.
     fn remove_context(&self, context: String) -> PyResult<()> {
+        debug!("Removing context {}", context);
         let value_existed = self.0.contexts.write().unwrap().remove(&context);
         if value_existed { Ok(()) } else { Err(PyRuntimeError::new_err("Removing context that doesn't exist!")) }
     }
@@ -100,7 +102,8 @@ impl Rustex {
 
         pyo3_asyncio::async_std::future_into_py(py, async move {
             if !(core.contexts.read().unwrap().contains(&context)) {
-                return Err(PyRuntimeError::new_err("Trying to acquire mutex for context that is not registered"))
+                error!("Failed to acquire mutex {} as context {} is not registered", mutex_name, context);
+                return Err(PyRuntimeError::new_err("Trying to acquire mutex for context that is not registered, did you forgot an await?"))
             }
 
             let mut success = false;
@@ -143,7 +146,8 @@ impl Rustex {
 
         pyo3_asyncio::async_std::future_into_py(py, async move {
             if !(core.contexts.read().unwrap().contains(&context)) {
-                return Err(PyRuntimeError::new_err("Trying to acquire mutex for context that is not registered"))
+                error!("Failed to acquire mutex {} as context {} is not registered", mutex_name, context);
+                return Err(PyRuntimeError::new_err("Trying to acquire mutex for context that is not registered, did you forgot an await?"))
             }
 
             let mut map = core.map.write().unwrap();
@@ -181,7 +185,8 @@ impl Rustex {
 
         pyo3_asyncio::async_std::future_into_py(py, async move {
             if !(core.contexts.read().unwrap().contains(&context)) {
-                return Err(PyRuntimeError::new_err("Trying to release mutex for context that is not registered"))
+                error!("Failed to release mutex {} as context {} is not registered", mutex_name, context);
+                return Err(PyRuntimeError::new_err("Trying to release mutex for context that is not registered, did you forgot an await?"))
             }
 
             let mut map = core.map.write().unwrap();
